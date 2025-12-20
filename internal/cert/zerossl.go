@@ -10,16 +10,54 @@ import (
 	"strings"
 )
 
+// isFatalError checks if the error is a fatal error that should not be retried
+func isFatalError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "api error 401") || // Unauthorized
+		strings.Contains(errStr, "api error 403") || // Forbidden
+		strings.Contains(errStr, "invalid api key") ||
+		strings.Contains(errStr, "invalid access key") ||
+		strings.Contains(errStr, "access_key") ||
+		strings.Contains(errStr, "authentication") ||
+		strings.Contains(errStr, "unauthorized")
+}
+
+// isRetryableError checks if the error is a temporary/retryable error
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Never retry fatal errors
+	if isFatalError(err) {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "API error 5") || // 5xx errors
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "temporary failure")
+}
+
 type ValidationDetails struct {
 	FileValidationURLHTTP string   `json:"file_validation_url_http"`
 	FileValidationContent []string `json:"file_validation_content"`
 }
 
-type createCertificateResponse struct {
-	ID         string `json:"id"`
-	Validation struct {
+type certificateInfo struct {
+	ID                 string `json:"id"`
+	CommonName         string `json:"common_name"`
+	Status             string `json:"status"`
+	CertificateDomains string `json:"certificate.domains"` // comma separated
+	Validation         struct {
 		OtherMethods map[string]ValidationDetails `json:"other_methods"`
 	} `json:"validation"`
+}
+
+type listCertificatesResponse struct {
+	Results []certificateInfo `json:"results"`
 }
 
 type certificateDownloadResponse struct {
@@ -32,7 +70,80 @@ type zerosslClient struct {
 	baseURL string
 }
 
-func (c *zerosslClient) createCertificate(ctx context.Context, ips []string, csr string, validityDays int) (*createCertificateResponse, error) {
+// listCertificates returns all certificates matching the given status
+func (c *zerosslClient) listCertificates(ctx context.Context, status string) ([]certificateInfo, error) {
+	path := "/certificates?certificate_status=" + status
+	resp, err := c.get(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result listCertificatesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return result.Results, nil
+}
+
+// getCertificate returns full certificate info including validation details
+func (c *zerosslClient) getCertificate(ctx context.Context, certID string) (*certificateInfo, error) {
+	resp, err := c.get(ctx, "/certificates/"+certID)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result certificateInfo
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// findExistingCertificate finds an existing certificate for the given IPs
+func (c *zerosslClient) findExistingCertificate(ctx context.Context, ips []string) (*certificateInfo, error) {
+	targetIPs := make(map[string]bool)
+	for _, ip := range ips {
+		targetIPs[ip] = true
+	}
+
+	// Check these statuses in order of preference
+	statuses := []string{"issued", "pending_validation", "draft"}
+
+	for _, status := range statuses {
+		certs, err := c.listCertificates(ctx, status)
+		if err != nil {
+			continue // Ignore errors, try next status
+		}
+
+		for _, cert := range certs {
+			// Check if this certificate covers all our IPs
+			certDomains := strings.Split(cert.CertificateDomains, ",")
+			certIPs := make(map[string]bool)
+			for _, d := range certDomains {
+				certIPs[strings.TrimSpace(d)] = true
+			}
+
+			allMatch := true
+			for _, ip := range ips {
+				if !certIPs[ip] {
+					allMatch = false
+					break
+				}
+			}
+
+			if allMatch {
+				// Get full details including validation info
+				return c.getCertificate(ctx, cert.ID)
+			}
+		}
+	}
+
+	return nil, nil // No existing certificate found
+}
+
+func (c *zerosslClient) createCertificate(ctx context.Context, ips []string, csr string, validityDays int) (*certificateInfo, error) {
 	form := url.Values{
 		"certificate_domains":       {strings.Join(ips, ",")},
 		"certificate_csr":           {csr},
@@ -45,7 +156,7 @@ func (c *zerosslClient) createCertificate(ctx context.Context, ips []string, csr
 	}
 	defer resp.Body.Close()
 
-	var result createCertificateResponse
+	var result certificateInfo
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
@@ -53,6 +164,7 @@ func (c *zerosslClient) createCertificate(ctx context.Context, ips []string, csr
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("invalid response: %s", body)
 	}
+	result.Status = "draft"
 	return &result, nil
 }
 

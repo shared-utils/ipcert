@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/shared-utils/ipcert/compare/v1.0.1...v1.1.0) (2025-12-20)
+
+
+### Features
+
+* retry logic ([5d34d85](https://github.com/shared-utils/ipcert/commit/5d34d85d461e69176e467df318cc1b7e0d835020))
+* retry logic ([26a87a7](https://github.com/shared-utils/ipcert/commit/26a87a7dbf32f2210724f5a5dec6332452c8c6fa))
+
 ## [1.0.1](https://github.com/shared-utils/ipcert/compare/v1.0.0...v1.0.1) (2025-12-20)
 
 

@@ -47,11 +47,10 @@ type ValidationDetails struct {
 }
 
 type certificateInfo struct {
-	ID                 string `json:"id"`
-	CommonName         string `json:"common_name"`
-	Status             string `json:"status"`
-	CertificateDomains string `json:"certificate.domains"` // comma separated
-	Validation         struct {
+	ID         string `json:"id"`
+	CommonName string `json:"common_name"`
+	Status     string `json:"status"`
+	Validation struct {
 		OtherMethods map[string]ValidationDetails `json:"other_methods"`
 	} `json:"validation"`
 }
@@ -112,28 +111,21 @@ func (c *zerosslClient) findExistingCertificate(ctx context.Context, ips []strin
 	statuses := []string{"issued", "pending_validation", "draft"}
 
 	for _, status := range statuses {
+		fmt.Printf("  └─ Checking status '%s'...\n", status)
 		certs, err := c.listCertificates(ctx, status)
 		if err != nil {
-			continue // Ignore errors, try next status
+			fmt.Printf("     Error listing %s certificates: %v\n", status, err)
+			continue
 		}
+		fmt.Printf("     Found %d certificates with status '%s'\n", len(certs), status)
 
 		for _, cert := range certs {
-			// Check if this certificate covers all our IPs
-			certDomains := strings.Split(cert.CertificateDomains, ",")
-			certIPs := make(map[string]bool)
-			for _, d := range certDomains {
-				certIPs[strings.TrimSpace(d)] = true
-			}
+			fmt.Printf("     - Cert ID: %s, CommonName: %s\n", cert.ID, cert.CommonName)
 
-			allMatch := true
-			for _, ip := range ips {
-				if !certIPs[ip] {
-					allMatch = false
-					break
-				}
-			}
-
-			if allMatch {
+			// For IP certificates, CommonName is the IP address
+			// Check if CommonName matches any of our target IPs
+			if targetIPs[cert.CommonName] {
+				fmt.Printf("     ✓ Found matching certificate!\n")
 				// Get full details including validation info
 				return c.getCertificate(ctx, cert.ID)
 			}
@@ -208,8 +200,17 @@ func (c *zerosslClient) downloadCertificate(ctx context.Context, certID string) 
 	return &result, nil
 }
 
+func (c *zerosslClient) buildURL(path string) string {
+	// Handle paths that already have query parameters
+	separator := "?"
+	if strings.Contains(path, "?") {
+		separator = "&"
+	}
+	return fmt.Sprintf("%s%s%saccess_key=%s", c.baseURL, path, separator, c.apiKey)
+}
+
 func (c *zerosslClient) post(ctx context.Context, path string, form url.Values) (*http.Response, error) {
-	reqURL := fmt.Sprintf("%s%s?access_key=%s", c.baseURL, path, c.apiKey)
+	reqURL := c.buildURL(path)
 	req, err := http.NewRequestWithContext(ctx, "POST", reqURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
@@ -229,7 +230,7 @@ func (c *zerosslClient) post(ctx context.Context, path string, form url.Values) 
 }
 
 func (c *zerosslClient) get(ctx context.Context, path string) (*http.Response, error) {
-	reqURL := fmt.Sprintf("%s%s?access_key=%s", c.baseURL, path, c.apiKey)
+	reqURL := c.buildURL(path)
 	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
 		return nil, err

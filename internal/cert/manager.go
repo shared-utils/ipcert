@@ -99,16 +99,21 @@ func (m *manager) Obtain(ctx context.Context) error {
 	}
 
 	// Start validation server
-	server := m.startValidationServer(createResp.Validation.OtherMethods)
+	server, err := m.startValidationServer(createResp.Validation.OtherMethods)
+	if err != nil {
+		return err
+	}
 	defer server.Shutdown(context.Background())
 	time.Sleep(2 * time.Second)
 
 	// Trigger validation
+	fmt.Println("Triggering domain validation...")
 	if err := client.verifyChallenge(ctx, createResp.ID); err != nil {
 		return err
 	}
 
 	// Poll for certificate
+	fmt.Println("Waiting for certificate to be issued...")
 	for {
 		select {
 		case <-ctx.Done():
@@ -121,6 +126,7 @@ func (m *manager) Obtain(ctx context.Context) error {
 			return err
 		}
 
+		fmt.Printf("Certificate status: %s\n", status)
 		if status == "issued" {
 			return m.downloadAndSave(ctx, client, createResp.ID)
 		}
@@ -161,7 +167,7 @@ func (m *manager) generateCSR() (string, error) {
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})), nil
 }
 
-func (m *manager) startValidationServer(methods map[string]ValidationDetails) *http.Server {
+func (m *manager) startValidationServer(methods map[string]ValidationDetails) (*http.Server, error) {
 	pathToContent := make(map[string]string)
 	for _, details := range methods {
 		if details.FileValidationURLHTTP == "" {
@@ -171,12 +177,14 @@ func (m *manager) startValidationServer(methods map[string]ValidationDetails) *h
 		if len(parts) >= 4 {
 			path := "/" + strings.Join(parts[3:], "/")
 			pathToContent[path] = strings.Join(details.FileValidationContent, "\n")
+			fmt.Printf("Validation endpoint registered: %s\n", path)
 		}
 	}
 
 	server := &http.Server{
 		Addr: ":80",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Printf("Validation request: %s\n", r.URL.Path)
 			if content, ok := pathToContent[r.URL.Path]; ok {
 				w.Write([]byte(content))
 			} else {
@@ -188,8 +196,20 @@ func (m *manager) startValidationServer(methods map[string]ValidationDetails) *h
 		}),
 	}
 
-	go server.ListenAndServe()
-	return server
+	// Try to bind port 80 and check for errors
+	listener, err := net.Listen("tcp", ":80")
+	if err != nil {
+		return nil, fmt.Errorf("failed to bind port 80 (try running with sudo): %w", err)
+	}
+
+	go func() {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Validation server error: %v\n", err)
+		}
+	}()
+
+	fmt.Println("Validation server started on :80")
+	return server, nil
 }
 
 func (m *manager) downloadAndSave(ctx context.Context, client *zerosslClient, certID string) error {

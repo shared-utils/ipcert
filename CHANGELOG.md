@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/shared-utils/ipcert/compare/v1.0.0...v1.0.1) (2025-12-20)
+
+
+### Bug Fixes
+
+* logger ([cb7d88c](https://github.com/shared-utils/ipcert/commit/cb7d88ca459e609d49cd2ca1e0c690ee0392cb8f))
+* logger ([9adadd2](https://github.com/shared-utils/ipcert/commit/9adadd260e0f1b6891e5aaf3bc71787af0fb4d97))
+
 ## 1.0.0 (2025-12-20)
 
 

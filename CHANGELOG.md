@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 (2025-12-20)
+
+
+### Features
+
+* initial commit ([abb0c85](https://github.com/shared-utils/ipcert/commit/abb0c8553b2278fd0827493a2076950ee339ad4b))
+
 ## [1.5.0](https://github.com/shared-utils/cert-manager/compare/v1.4.0...v1.5.0) (2025-11-30)
 
 

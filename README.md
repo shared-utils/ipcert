@@ -31,7 +31,7 @@ ipcert renew --zerossl.api-key=YOUR_KEY --public-ips=1.2.3.4
 | `--zerossl.base-url` | `ZEROSSL_BASE_URL` | ZeroSSL API 地址 | `https://api.zerossl.com` |
 | `--output-dir` | - | 证书输出目录 | `/etc/ipcert` |
 | `--public-ips` | `PUBLIC_IPS` | 公网 IP（逗号分隔） | (必填) |
-| `--timeout` | - | 操作超时时间 | `2m` |
+| `--timeout` | - | 操作超时时间 | `5m` |
 
 ## 输出文件
 

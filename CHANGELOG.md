@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/shared-utils/ipcert/compare/v1.1.1...v1.2.0) (2025-12-23)
+
+
+### Features
+
+* resolve task ([ecea0cb](https://github.com/shared-utils/ipcert/commit/ecea0cbdfa105211ed633fce4950148fd760c774))
+* resolve task ([c8152ea](https://github.com/shared-utils/ipcert/commit/c8152ea1c24fde887db0a77c1cb2298842917c2a))
+
 ## [1.1.1](https://github.com/shared-utils/ipcert/compare/v1.1.0...v1.1.1) (2025-12-20)
 
 

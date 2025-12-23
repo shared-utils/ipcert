@@ -20,7 +20,7 @@ type Options struct {
 	ZeroSSL   ZeroSSLConfig `embed:"" prefix:"zerossl."`
 	OutputDir string        `help:"Output directory for certificates" type:"path" default:"/etc/ipcert" name:"output-dir"`
 	PublicIPs []string      `help:"Public IPs (comma separated)" env:"PUBLIC_IPS" sep:"," name:"public-ips" required:""`
-	Timeout   time.Duration `help:"Timeout for certificate operations" default:"2m" name:"timeout"`
+	Timeout   time.Duration `help:"Timeout for certificate operations" default:"5m" name:"timeout"`
 }
 
 func (o *Options) newManager() (cert.Manager, error) {
